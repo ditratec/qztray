@@ -198,9 +198,12 @@ jobs:
               id: create_release
               uses: ncipollo/release-action@v1
               with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  tag: v${{ github.run_number }}
+                  commit: ${{ github.sha }}
+                  name: 'QZ Tray installers #${{ github.run_number }}'
                   artifacts: 'out/qz-tray-*.run,out/qz-tray-*.pkg,out/qz-tray-*.exe'
                   draft: false
-                  name: 'QZ Tray installers #${{ github.run_number }}'
                   prerelease: false
-                  tag: v${{ github.run_number }}
-                  token: ${{ secrets.GITHUB_TOKEN }}
+                  allowUpdates: true
+                  artifactErrorsFailBuild: true
