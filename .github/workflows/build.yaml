@@ -72,7 +72,7 @@ jobs:
                   ant -Dprovision.file=provision.json makeself
 
             - name: Upload artifacts
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: installers-${{ matrix.os }}
                   path: out/qz-tray-*
