@@ -163,7 +163,7 @@ jobs:
 
             - name: Build .exe installer
               shell: pwsh
-              run: ant -Dprovision.file=provision.json nsis
+              run: ant --% -Dprovision.file=provision.json nsis
 
             - name: Upload installers as artifact
               id: upload
