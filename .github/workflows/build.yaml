@@ -183,16 +183,19 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: installers-linux-java21
+                  path: .  
 
             - name: Download macOS artifact
               uses: actions/download-artifact@v4
               with:
                   name: installers-macos-java21
+                  path: .  
 
             - name: Download Windows artifact
               uses: actions/download-artifact@v4
               with:
                   name: installers-windows-java21
+                  path: .  
 
             - name: Create GitHub Release and upload installers
               id: create_release
