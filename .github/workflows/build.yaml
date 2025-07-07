@@ -24,14 +24,23 @@ jobs:
                   java-version: ${{ matrix.java }}
 
             - name: Install dependencies
+              if: runner.os == 'Linux'
               run: |
-                  if [[ "${{ runner.os }}" == "Linux" ]]; then
-                    sudo apt-get update && sudo apt-get install -y ant
-                  elif [[ "${{ runner.os }}" == "macOS" ]]; then
-                    brew update && brew install ant nsis
-                  else
-                    choco install -y ant nsis
-                  fi
+                  sudo apt-get update
+                  sudo apt-get install -y ant
+
+            - name: Install dependencies
+              if: runner.os == 'macOS'
+              run: |
+                  brew update
+                  brew install ant nsis
+
+            - name: Install dependencies
+              if: runner.os == 'Windows'
+              shell: pwsh
+              run: |
+                  choco install -y ant
+                  choco install -y nsis
 
             - name: Inject certificates from Secrets
               run: |
@@ -39,7 +48,7 @@ jobs:
                   printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
                   chmod 600 private.key
 
-            - name: Copy provisioning files
+            - name: Generate provision.json
               run: |
                   cat > provision.json <<EOF
                   [
