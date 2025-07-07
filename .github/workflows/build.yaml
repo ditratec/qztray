@@ -132,7 +132,7 @@ jobs:
             - name: Prepare certificates and provisioning
               shell: pwsh
               run: |
-                  Write-Output "${{ secrets.CERT_PEM }}"   | Out-File -Encoding ascii certificate.pem
+                  Write-Output "${{ secrets.CERT_PEM }}" | Out-File -Encoding ascii certificate.pem
                   Write-Output "${{ secrets.PRIVATE_KEY }}" | Out-File -Encoding ascii private.key
                   $json = @'
                   [
@@ -162,6 +162,7 @@ jobs:
               run: choco install -y ant nsis
 
             - name: Build .exe installer
+              shell: pwsh
               run: ant -Dprovision.file=provision.json nsis
 
             - name: Upload installers as artifact
