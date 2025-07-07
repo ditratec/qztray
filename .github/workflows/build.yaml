@@ -1,6 +1,8 @@
 name: build
 
 on: [push, pull_request]
+permissions:
+    contents: write
 
 jobs:
     macos:
@@ -193,12 +195,13 @@ jobs:
 
             - name: Create GitHub Release
               id: create_release
-              uses: actions/create-release@v1
+              uses: actions/create-release@v2
               with:
-                  tag_name: v${{ github.run_number }}
-                  release_name: 'QZ Tray installers #${{ github.run_number }}'
                   draft: false
                   prerelease: false
+                  release_name: 'Release #${{ github.run_number }}'
+                  tag_name: v${{ github.run_number }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Upload Linux .run to Release
               uses: actions/upload-release-asset@v1
