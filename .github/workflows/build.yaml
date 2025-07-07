@@ -183,30 +183,36 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: installers-linux-java21
-                  path: .  
+                  path: .
 
             - name: Download macOS artifact
               uses: actions/download-artifact@v4
               with:
                   name: installers-macos-java21
-                  path: .  
+                  path: .
 
             - name: Download Windows artifact
               uses: actions/download-artifact@v4
               with:
                   name: installers-windows-java21
-                  path: .  
+                  path: .
+
+            - name: Display structure of downloaded files
+              run: ls -R
 
             - name: Create GitHub Release and upload installers
               id: create_release
               uses: ncipollo/release-action@v1
               with:
-                  token: ${{ secrets.GITHUB_TOKEN }}
-                  tag: v${{ github.run_number }}
-                  commit: ${{ github.sha }}
-                  name: 'QZ Tray installers #${{ github.run_number }}'
-                  artifacts: 'out/qz-tray-*.run,out/qz-tray-*.pkg,out/qz-tray-*.exe'
-                  draft: false
-                  prerelease: false
                   allowUpdates: true
                   artifactErrorsFailBuild: true
+                  artifacts: |
+                      installers-linux-java21/out/qz-tray-*.run,
+                      installers-macos-java21/out/qz-tray-*.pkg,
+                      installers-windows-java21/out/qz-tray-*.exe
+                  commit: ${{ github.sha }}
+                  draft: false
+                  name: 'Release #${{ github.run_number }}'
+                  prerelease: false
+                  tag: v${{ github.run_number }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
