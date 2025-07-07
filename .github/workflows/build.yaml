@@ -23,19 +23,19 @@ jobs:
                   distribution: temurin
                   java-version: ${{ matrix.java }}
 
-            - name: Install dependencies
+            - name: Install dependencies on Linux
               if: runner.os == 'Linux'
               run: |
                   sudo apt-get update
                   sudo apt-get install -y ant
 
-            - name: Install dependencies
+            - name: Install dependencies on macOS
               if: runner.os == 'macOS'
               run: |
                   brew update
                   brew install ant nsis
 
-            - name: Install dependencies
+            - name: Install dependencies on Windows
               if: runner.os == 'Windows'
               shell: pwsh
               run: |
@@ -48,29 +48,57 @@ jobs:
                   printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
                   chmod 600 private.key
 
-            - name: Generate provision.json
+            - name: Generate provision.json on Linux/macOS
+              if: runner.os != 'Windows'
               run: |
                   cat > provision.json <<EOF
                   [
-                    {
+                      {
                       "description": "Instala mi root CA",
                       "type": "ca",
                       "data": "certificate.pem"
-                    },
-                    {
+                      },
+                      {
                       "description": "Confía en el certificado de QZ Tray",
                       "type": "cert",
                       "data": "certificate.pem"
-                    },
-                    {
+                      },
+                      {
                       "description": "Despliega la clave privada",
                       "type": "script",
                       "phase": "install",
                       "os": "windows|mac|linux",
                       "data": "deploy_key.sh"
-                    }
+                      }
                   ]
                   EOF
+
+            - name: Generate provision.json on Windows
+              if: runner.os == 'Windows'
+              shell: pwsh
+              run: |
+                  $json = @'
+                  [
+                      {
+                      "description": "Instala mi root CA",
+                      "type": "ca",
+                      "data": "certificate.pem"
+                      },
+                      {
+                      "description": "Confía en el certificado de QZ Tray",
+                      "type": "cert",
+                      "data": "certificate.pem"
+                      },
+                      {
+                      "description": "Despliega la clave privada",
+                      "type": "script",
+                      "phase": "install",
+                      "os": "windows|mac|linux",
+                      "data": "deploy_key.sh"
+                      }
+                  ]
+                  '@
+                  $json | Out-File -FilePath provision.json -Encoding ascii
 
             - name: Build installers
               run: |
