@@ -50,7 +50,11 @@ jobs:
                   brew install nsis makeself
 
             - name: Build .pkg installer
-              run: ant -Dprovision.file=provision.json pkgbuild
+              run: |
+                  ant \
+                    -Dprovision.file=provision.json \
+                    -Dauthcert.use=certificate.pem \
+                    pkgbuild
 
             - name: Upload installers as artifact
               id: upload
@@ -106,7 +110,11 @@ jobs:
                   sudo apt-get install -y ant makeself
 
             - name: Build .run installer
-              run: ant -Dprovision.file=provision.json makeself
+              run: |
+                  ant \
+                    -Dprovision.file=provision.json \
+                    -Dauthcert.use=certificate.pem \
+                    makeself
 
             - name: Upload installers as artifact
               id: upload
@@ -163,7 +171,11 @@ jobs:
 
             - name: Build .exe installer
               shell: pwsh
-              run: ant --% -Dprovision.file=provision.json nsis
+              run: |
+                  ant --% `
+                    -Dprovision.file=provision.json `
+                    -Dauthcert.use=certificate.pem `
+                    nsis
 
             - name: Upload installers as artifact
               id: upload
