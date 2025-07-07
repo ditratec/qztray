@@ -41,7 +41,6 @@ jobs:
 
             - name: Copy provisioning files
               run: |
-                  cp deploy_key.sh .
                   cat > provision.json <<EOF
                   [
                     {
