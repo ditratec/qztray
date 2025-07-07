@@ -197,19 +197,13 @@ jobs:
                   name: installers-windows-java21
                   path: .
 
-            - name: Display structure of downloaded files
-              run: ls -R
-
             - name: Create GitHub Release and upload installers
               id: create_release
               uses: ncipollo/release-action@v1
               with:
                   allowUpdates: true
                   artifactErrorsFailBuild: true
-                  artifacts: |
-                      installers-linux-java21/out/qz-tray-*.run,
-                      installers-macos-java21/out/qz-tray-*.pkg,
-                      installers-windows-java21/out/qz-tray-*.exe
+                  artifacts: qz-tray-*
                   commit: ${{ github.sha }}
                   draft: false
                   name: 'Release #${{ github.run_number }}'
