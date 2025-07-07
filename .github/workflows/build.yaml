@@ -1,114 +1,145 @@
-name: Build QZ Tray Installers
+name: build
 
-on:
-    push:
-        branches: [main]
-    workflow_dispatch:
+on: [push, pull_request]
 
 jobs:
-    build:
+    ubuntu:
+        runs-on: [ubuntu-latest]
         strategy:
             matrix:
-                os: [ubuntu-latest, macos-latest, windows-latest]
-                java: [21]
-        runs-on: ${{ matrix.os }}
-
+                java: [11, 21]
         steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Setup Java
-              uses: actions/setup-java@v3
+            - uses: actions/checkout@v3
+            - uses: actions/setup-java@v3
               with:
-                  distribution: temurin
                   java-version: ${{ matrix.java }}
+                  distribution: 'liberica'
 
-            - name: Install dependencies on Linux
-              if: runner.os == 'Linux'
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y ant
-
-            - name: Install dependencies on macOS
-              if: runner.os == 'macOS'
-              run: |
-                  brew update
-                  brew install ant nsis
-
-            - name: Install dependencies on Windows
-              if: runner.os == 'Windows'
-              shell: pwsh
-              run: |
-                  choco install -y ant
-                  choco install -y nsis
-
-            - name: Inject certificates from Secrets
+            - name: Prepare certificates and provisioning (Linux)
               run: |
                   printf "%s\n" "${{ secrets.CERT_PEM }}" > certificate.pem
                   printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
                   chmod 600 private.key
-
-            - name: Generate provision.json on Linux/macOS
-              if: runner.os != 'Windows'
-              run: |
                   cat > provision.json <<EOF
                   [
-                      {
+                    {
                       "description": "Instala mi root CA",
                       "type": "ca",
                       "data": "certificate.pem"
-                      },
-                      {
+                    },
+                    {
                       "description": "Confía en el certificado de QZ Tray",
                       "type": "cert",
                       "data": "certificate.pem"
-                      },
-                      {
+                    },
+                    {
                       "description": "Despliega la clave privada",
                       "type": "script",
                       "phase": "install",
-                      "os": "windows|mac|linux",
+                      "os": "linux",
                       "data": "deploy_key.sh"
-                      }
+                    }
                   ]
                   EOF
 
-            - name: Generate provision.json on Windows
-              if: runner.os == 'Windows'
-              shell: pwsh
+            - run: sudo apt-get install nsis makeself
+            - run: ant makeself
+            - run: sudo out/qz-tray-*.run
+            - run: /opt/qz-tray/qz-tray --version
+            - run: ant nsis
+
+    macos:
+        runs-on: [macos-latest]
+        strategy:
+            matrix:
+                java: [11, 21]
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions/setup-java@v3
+              with:
+                  java-version: ${{ matrix.java }}
+                  distribution: 'liberica'
+
+            - name: Prepare certificates and provisioning (macOS)
               run: |
-                  $json = @'
+                  printf "%s\n" "${{ secrets.CERT_PEM }}" > certificate.pem
+                  printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
+                  chmod 600 private.key
+                  cat > provision.json <<EOF
                   [
-                      {
+                    {
                       "description": "Instala mi root CA",
                       "type": "ca",
                       "data": "certificate.pem"
-                      },
-                      {
+                    },
+                    {
                       "description": "Confía en el certificado de QZ Tray",
                       "type": "cert",
                       "data": "certificate.pem"
-                      },
-                      {
+                    },
+                    {
                       "description": "Despliega la clave privada",
                       "type": "script",
                       "phase": "install",
-                      "os": "windows|mac|linux",
+                      "os": "mac",
                       "data": "deploy_key.sh"
-                      }
+                    }
+                  ]
+                  EOF
+
+            - run: brew install nsis makeself
+            - run: ant pkgbuild
+            - run: echo "Setting CA trust settings to 'allow' (https://github.com/actions/runner-images/issues/4519)"
+            - run: security authorizationdb read com.apple.trust-settings.admin > /tmp/trust-settings-backup.xml
+            - run: sudo security authorizationdb write com.apple.trust-settings.admin allow
+            - run: sudo installer -pkg out/qz-tray-*.pkg -target /
+            - run: echo "Restoring CA trust settings back to default"
+            - run: sudo security authorizationdb write com.apple.trust-settings.admin < /tmp/trust-settings-backup.xml
+            - run: "'/Applications/QZ Tray.app/Contents/MacOS/QZ Tray' --version"
+            - run: ant makeself
+            - run: ant nsis
+
+    windows:
+        runs-on: [windows-latest]
+        strategy:
+            matrix:
+                java: [11, 21]
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions/setup-java@v3
+              with:
+                  java-version: ${{ matrix.java }}
+                  distribution: 'liberica'
+
+            - name: Prepare certificates and provisioning (Windows)
+              shell: pwsh
+              run: |
+                  Write-Output "${{ secrets.CERT_PEM }}" | Out-File -Encoding ascii certificate.pem
+                  Write-Output "${{ secrets.PRIVATE_KEY }}" | Out-File -Encoding ascii private.key
+                  $json = @'
+                  [
+                    {
+                      "description": "Instala mi root CA",
+                      "type": "ca",
+                      "data": "certificate.pem"
+                    },
+                    {
+                      "description": "Confía en el certificado de QZ Tray",
+                      "type": "cert",
+                      "data": "certificate.pem"
+                    },
+                    {
+                      "description": "Despliega la clave privada",
+                      "type": "script",
+                      "phase": "install",
+                      "os": "windows",
+                      "data": "deploy_key.sh"
+                    }
                   ]
                   '@
                   $json | Out-File -FilePath provision.json -Encoding ascii
 
-            - name: Build installers
-              run: |
-                  ant -Dprovision.file=provision.json
-                  ant -Dprovision.file=provision.json nsis
-                  ant -Dprovision.file=provision.json pkgbuild
-                  ant -Dprovision.file=provision.json makeself
-
-            - name: Upload artifacts
-              uses: actions/upload-artifact@v4
-              with:
-                  name: installers-${{ matrix.os }}
-                  path: out/qz-tray-*
+            - run: choco install nsis
+            - run: ant nsis
+            - run: Start-Process -Wait ./out/qz-tray-*.exe -ArgumentList "/S"
+            - run: "&'C:/Program Files/QZ Tray/qz-tray.exe' --wait --version|Out-Null"
