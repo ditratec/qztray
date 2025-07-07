@@ -1,13 +1,18 @@
 name: build
 
-on: [push, pull_request]
+on:
+    push:
+        branches: [main]
+    pull_request:
 
 jobs:
     ubuntu:
-        runs-on: [ubuntu-latest]
+        runs-on: ubuntu-latest
         strategy:
             matrix:
                 java: [21]
+        outputs:
+            artifact-linux: ${{ steps.upload.outputs.artifact-name }}
         steps:
             - uses: actions/checkout@v3
             - uses: actions/setup-java@v3
@@ -15,7 +20,7 @@ jobs:
                   java-version: ${{ matrix.java }}
                   distribution: 'liberica'
 
-            - name: Prepare certificates and provisioning (Linux)
+            - name: Prepare certificates and provisioning
               run: |
                   printf "%s\n" "${{ secrets.CERT_PEM }}" > certificate.pem
                   printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
@@ -42,23 +47,28 @@ jobs:
                   ]
                   EOF
 
-            - run: sudo apt-get install nsis makeself
-            - run: ant makeself
-            - run: sudo out/qz-tray-*.run
-            - run: /opt/qz-tray/qz-tray --version
-            - run: ant nsis
+            - name: Install dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y ant makeself
+
+            - name: Build .run installer
+              run: ant -Dprovision.file=provision.json makeself
 
             - name: Upload installers as artifact
+              id: upload
               uses: actions/upload-artifact@v4
               with:
-                name: installers-linux-java${{ matrix.java }}
-                path: out/qz-tray-*
+                  name: installers-linux-java${{ matrix.java }}
+                  path: out/qz-tray-*.run
 
     macos:
-        runs-on: [macos-latest]
+        runs-on: macos-latest
         strategy:
             matrix:
                 java: [21]
+        outputs:
+            artifact-macos: ${{ steps.upload.outputs.artifact-name }}
         steps:
             - uses: actions/checkout@v3
             - uses: actions/setup-java@v3
@@ -66,7 +76,7 @@ jobs:
                   java-version: ${{ matrix.java }}
                   distribution: 'liberica'
 
-            - name: Prepare certificates and provisioning (macOS)
+            - name: Prepare certificates and provisioning
               run: |
                   printf "%s\n" "${{ secrets.CERT_PEM }}" > certificate.pem
                   printf "%s\n" "${{ secrets.PRIVATE_KEY }}" > private.key
@@ -93,29 +103,28 @@ jobs:
                   ]
                   EOF
 
-            - run: brew install nsis makeself
-            - run: ant pkgbuild
-            - run: echo "Setting CA trust settings to 'allow' (https://github.com/actions/runner-images/issues/4519)"
-            - run: security authorizationdb read com.apple.trust-settings.admin > /tmp/trust-settings-backup.xml
-            - run: sudo security authorizationdb write com.apple.trust-settings.admin allow
-            - run: sudo installer -pkg out/qz-tray-*.pkg -target /
-            - run: echo "Restoring CA trust settings back to default"
-            - run: sudo security authorizationdb write com.apple.trust-settings.admin < /tmp/trust-settings-backup.xml
-            - run: "'/Applications/QZ Tray.app/Contents/MacOS/QZ Tray' --version"
-            - run: ant makeself
-            - run: ant nsis
+            - name: Install dependencies
+              run: |
+                  brew update
+                  brew install ant pkgbuild
+
+            - name: Build .pkg installer
+              run: ant -Dprovision.file=provision.json pkgbuild
 
             - name: Upload installers as artifact
+              id: upload
               uses: actions/upload-artifact@v4
               with:
-                name: installers-macos-java${{ matrix.java }}
-                path: out/qz-tray-*
+                  name: installers-macos-java${{ matrix.java }}
+                  path: out/qz-tray-*.pkg
 
     windows:
-        runs-on: [windows-latest]
+        runs-on: windows-latest
         strategy:
             matrix:
                 java: [21]
+        outputs:
+            artifact-windows: ${{ steps.upload.outputs.artifact-name }}
         steps:
             - uses: actions/checkout@v3
             - uses: actions/setup-java@v3
@@ -123,10 +132,10 @@ jobs:
                   java-version: ${{ matrix.java }}
                   distribution: 'liberica'
 
-            - name: Prepare certificates and provisioning (Windows)
+            - name: Prepare certificates and provisioning
               shell: pwsh
               run: |
-                  Write-Output "${{ secrets.CERT_PEM }}" | Out-File -Encoding ascii certificate.pem
+                  Write-Output "${{ secrets.CERT_PEM }}"   | Out-File -Encoding ascii certificate.pem
                   Write-Output "${{ secrets.PRIVATE_KEY }}" | Out-File -Encoding ascii private.key
                   $json = @'
                   [
@@ -151,14 +160,68 @@ jobs:
                   '@
                   $json | Out-File -FilePath provision.json -Encoding ascii
 
-            - run: choco install nsis
-            - run: ant nsis
-            - run: Start-Process -Wait ./out/qz-tray-*.exe -ArgumentList "/S"
-            - run: "&'C:/Program Files/QZ Tray/qz-tray.exe' --wait --version|Out-Null"
-            
+            - name: Install dependencies
+              shell: pwsh
+              run: choco install -y ant nsis
+
+            - name: Build .exe installer
+              run: ant -Dprovision.file=provision.json nsis
+
             - name: Upload installers as artifact
+              id: upload
               uses: actions/upload-artifact@v4
               with:
-                name: installers-windows-java${{ matrix.java }}
-                path: out/qz-tray-*
+                  name: installers-windows-java${{ matrix.java }}
+                  path: out/qz-tray-*.exe
 
+    release:
+        needs: [ubuntu, macos, windows]
+        runs-on: ubuntu-latest
+        steps:
+            - name: Download Linux artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: installers-linux-java21
+
+            - name: Download macOS artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: installers-macos-java21
+
+            - name: Download Windows artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: installers-windows-java21
+
+            - name: Create GitHub Release
+              id: create_release
+              uses: actions/create-release@v1
+              with:
+                  tag_name: v${{ github.run_number }}
+                  release_name: 'QZ Tray installers #${{ github.run_number }}'
+                  draft: false
+                  prerelease: false
+
+            - name: Upload Linux .run to Release
+              uses: actions/upload-release-asset@v1
+              with:
+                  upload_url: ${{ steps.create_release.outputs.upload_url }}
+                  asset_path: ./out/qz-tray-*.run
+                  asset_name: qz-tray-linux-java21.run
+                  asset_content_type: application/octet-stream
+
+            - name: Upload macOS .pkg to Release
+              uses: actions/upload-release-asset@v1
+              with:
+                  upload_url: ${{ steps.create_release.outputs.upload_url }}
+                  asset_path: ./out/qz-tray-*.pkg
+                  asset_name: qz-tray-macos-java21.pkg
+                  asset_content_type: application/octet-stream
+
+            - name: Upload Windows .exe to Release
+              uses: actions/upload-release-asset@v1
+              with:
+                  upload_url: ${{ steps.create_release.outputs.upload_url }}
+                  asset_path: ./out/qz-tray-*.exe
+                  asset_name: qz-tray-windows-java21.exe
+                  asset_content_type: application/octet-stream
